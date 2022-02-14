@@ -432,10 +432,10 @@ def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framera
 		failedwordstring = accuracyfont.render("   "+failedword, True, white)
 		screen.blit(failedwordstring, (distancex, offsety+distancey*index))
 		index += 1
-	
+	 
 
 def drawCredits():
-	string = "Created by Marco Cardenes with help from Kush Bandi, Niel Wagner-Oke and Jackson Zemek. Word dataset from the official Wordle."
+	string = "Created by Marco Cardenes with help from Kush Bandi, Neil Wagner-Oke and Jackson Zemek. Word dataset from the official Wordle."
 	creditfont = pygame.font.SysFont(font_family, int(sizex/4))
 	credits = creditfont.render(string, True, white)
 	screen.blit(credits, (padding, height-sizex/4-padding))
