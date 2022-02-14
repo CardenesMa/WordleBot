@@ -28,8 +28,7 @@ locs = config['LOCATIONS']
 #!
 framerate = float(consts["framerate"])
 
-test_word = consts["starting_word"]
-word_list = [test_word]
+word_list = []
 
 # create the list of 5 letter words
 with open(locs["word_list"], "r") as f:
@@ -247,6 +246,7 @@ class Info:
 	
 	def getComplete(self):
 		return self.disp.checkComplete()
+	
 
 
 def makeInfo(info:Info):
@@ -266,6 +266,9 @@ def nextBestWord(info_arr:Info):
 
 	wordList = list(word_list)
 	info_arr = makeInfo(info_arr)
+
+	if len(info_arr) == 0:
+		return word_list[random.randint(0, len(word_list)-1)]
 
 	#Running this whole loop section several times due to python not parsing properly
 	for i in range(6):
@@ -370,10 +373,6 @@ def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framera
 	# make a little vector art
 	pygame.draw.line(screen,white,(distancex,offsety+distancey/2), (distancex + 2*sizex/3, offsety + distancey/2))
 
-	word = accuracyfont.render(f"Test Word: {test_word}", True, white)
-	screen.blit(word, (distancex, offsety+distancey*index))
-	index += 1
-
 	if divisor > 0:
 		score = accuracyfont.render(f"Success Rate: {round(total/divisor*100,2)}%",True,white)
 	else:
@@ -399,10 +398,6 @@ def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framera
 	longest = accuracyfont.render(f"Longest Streak: {max(streaks_list)}", True, white)
 	screen.blit(longest, (distancex, offsety+distancey*index))
 	index += 1 
-
-	secretword = accuracyfont.render(f"Secret Word: {secret}", True, white)
-	screen.blit(secretword, (distancex, offsety + distancey*index))
-	index += 1
 
 	if framerate < 1 and framerate > 0:
 		framerate = 1/framerate 
@@ -511,7 +506,7 @@ def run(Displayer:Displayer):
 	# guesses holds the number of words it's guessed within a game
 	guesses = 0
 	# default
-	best_word = test_word
+	best_word = word_list[random.randint(0, len(word_list)-1)]
 	# constants for running the game
 	info = Info(Displayer)
 	graph = Graph()
@@ -572,15 +567,16 @@ def run(Displayer:Displayer):
 		secret_word = Displayer.wordBoard.secret
 		Displayer.check()
 		# write the word into the screen
-		best_word = nextBestWord(info)
 		
-		# save that word into the temporary data
+		best_word = nextBestWord(info)
+		#display it
+		Displayer.display()
+		
 		# write the best word into the game
+		
 		for i in best_word:
 			Displayer.addLetter(i)
 
-		#display it
-		Displayer.display()
 
 		guesses += 1
 		if success:
@@ -603,7 +599,7 @@ def run(Displayer:Displayer):
 			streak += 1
 
 		elif not success and guesses==6:
-		
+			Displayer.display()
 			Displayer.makeRedBoxes()
 			failScreen()
 			if secret_word not in failed_words:
@@ -639,7 +635,9 @@ def run(Displayer:Displayer):
 
 			graph.display()
 
-			
+		if games_played/len(word_list)*100 >= 100:
+			games_played = 0
+			failed_words = []
 
 		pygame.display.flip()
 
@@ -656,6 +654,6 @@ def requirements():
 	run(displayer) to show the information on the screen
 	""")
 
-wb = WordBoard(test_word)
+wb = WordBoard(word_list[random.randint(0, len(word_list)-1)])
 d = Displayer(wb)
 run(d)
