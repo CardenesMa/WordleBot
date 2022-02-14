@@ -10,6 +10,9 @@ import pygame
 import random
 # used to get the information from the .ini file
 import configparser
+# used to write the ml data
+import csv
+
 
 # take inputs form the config (.ini) file 
 config = configparser.ConfigParser()
@@ -38,14 +41,17 @@ with open(locs["word_list"], "r") as f:
 height, width = int(consts["height"]), int(consts["width"])
 grey, orange, green, white, red = parse_tuple(consts["grey"]), parse_tuple(consts["orange"]), parse_tuple(consts["green"]), parse_tuple(consts["white"]),parse_tuple(consts["red"])
 padding = int(consts["padding"])
-
+# this is to offset the location of the letters because it looks strange
 letter_correct = int(consts["letter_correction"])
-
+# initializing the font 
 font_family = consts["font_family"]
 
 # box sizes (prioritizing height for square)
 sizey = int((height-7*padding)/8)
 sizex = sizey
+
+# this is saying whether or not to create training data for the wordl_ml.py file
+make_data = bool(consts["make_data"])
 
 # choosing where to draw the pygame board
 offsetx, offsety = int(width/2-2.5*sizex-2*padding), height/5
@@ -429,7 +435,7 @@ def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framera
 	
 
 def drawCredits():
-	string = "Created by Marco Cardenes, Kush Bandi, Niel Wagner-Oke and Jackson Zemek as a part of Mr. Nassar's Algorithm Design class. Word dataset from the official Wordle."
+	string = "Created by Marco Cardenes with help from Kush Bandi, Niel Wagner-Oke and Jackson Zemek. Word dataset from the official Wordle."
 	creditfont = pygame.font.SysFont(font_family, int(sizex/4))
 	credits = creditfont.render(string, True, white)
 	screen.blit(credits, (padding, height-sizex/4-padding))
@@ -488,10 +494,24 @@ class Graph:
 		screen.blit(labeld, (self.bl_loc[0]+(x_gap*scaler)/2-sizex/4, self.bl_loc[1]+sizex/4))
 
 
+def makeData(allwords:list):
+	#! isCorrect outdated, only make data if correct. Colors?
+	header = ["Word 1", "Word 2", "Word 3", "Word 4", "Word 5", "Word 6", "Correct Word"]
+	with open("wordle_data.csv","w") as f:
+		csvwriter = csv.writer(f)
+		# write that header
+		csvwriter.writerow(header)
+
+		csvwriter.writerows(allwords)
+
+
+
 #  start making pygame
 def run(Displayer:Displayer):
 	# guesses holds the number of words it's guessed within a game
 	guesses = 0
+	# default
+	best_word = test_word
 	# constants for running the game
 	info = Info(Displayer)
 	graph = Graph()
@@ -507,7 +527,10 @@ def run(Displayer:Displayer):
 	# this is used because it doens't actually make teh green boxes for the final correct word, so it's stored here
 	green_word = ""
 	frm = framerate
-
+	# this will hold the data for the machine learning in another file
+	ml_data = []
+	# this holds the gameplay data one at a time (so as not to destroy memory in case it needs to be replaced)
+	temp_data = []
 	while running:
 	
 		# fill background
@@ -535,21 +558,24 @@ def run(Displayer:Displayer):
 				if key == "9":
 					print(Displayer.wordBoard.secret)
 				elif key == "q":
-					pygame.quit()
-					quit()
+					running = False
 				elif key == "s":
 					show_stats = not show_stats
 				elif key == "up":
-					frm += 5
+					frm = 100
 				elif key == "down":
-					frm = 0.25
+					frm = 1
 		
 
+		temp_data.append(best_word)
 		# play the game
 		secret_word = Displayer.wordBoard.secret
 		Displayer.check()
 		# write the word into the screen
 		best_word = nextBestWord(info)
+		
+		# save that word into the temporary data
+		# write the best word into the game
 		for i in best_word:
 			Displayer.addLetter(i)
 
@@ -558,6 +584,16 @@ def run(Displayer:Displayer):
 
 		guesses += 1
 		if success:
+			# for the machine learning
+			if make_data:
+				# this is to put empty space for unused words
+				if guesses < 6:
+					for i in range(6-guesses):
+						temp_data.append("     ")
+				temp_data.append(green_word)
+				ml_data.append(temp_data)
+				temp_data = []
+			
 			successScreen()
 			Displayer.makeGreenFinal(guesses-1,green_word)
 			guesses=0
@@ -567,12 +603,19 @@ def run(Displayer:Displayer):
 			streak += 1
 
 		elif not success and guesses==6:
+		
 			Displayer.makeRedBoxes()
 			failScreen()
-			failed_words.append(secret_word)
+			if secret_word not in failed_words:
+				failed_words.append(secret_word)
 			games_played += 1
 			streak_list.append(streak)
 			streak = 0
+			temp_data = []
+			if make_data:
+				temp_data.append(green_word)
+				ml_data.append(temp_data)
+				temp_data = []
 		
 		else:
 			pygame.mixer.Sound.play(word_input_sound)
@@ -596,8 +639,13 @@ def run(Displayer:Displayer):
 
 			graph.display()
 
+			
 
 		pygame.display.flip()
+
+	# this is outside of the loop
+	if make_data:
+		makeData(ml_data)
 	pygame.quit()
 
 def requirements():
@@ -608,6 +656,6 @@ def requirements():
 	run(displayer) to show the information on the screen
 	""")
 
-wb = WordBoard("ADIEU")
+wb = WordBoard(test_word)
 d = Displayer(wb)
 run(d)
