@@ -5,6 +5,7 @@
 # This program shows a bot that plays wordle and shows the stats etc.
 
 # used to draw the bots actions
+from platform import python_branch
 import pygame
 # used to choose a random word for the bot to solve for
 import random
@@ -12,6 +13,8 @@ import random
 import configparser
 # used to write the ml data
 import csv
+
+from soupsieve import select
 
 
 # take inputs form the config (.ini) file 
@@ -356,7 +359,7 @@ def drawTitle():
 	# little vector design
 	pygame.draw.line(screen, white, (offsetx + sizex-padding, 2*offsety/3+padding*2),(offsetx + sizex*4+ padding*4, 2*offsety/3+padding*2),5)
  
-def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framerate = 0, secret = "", int_frm = 0):
+def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framerate = 0, secret = "", int_frm = 0, wordcount = []):
 
 	distancey = 20
 	distancex = padding*2
@@ -374,7 +377,7 @@ def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framera
 	pygame.draw.line(screen,white,(distancex,offsety+distancey/2), (distancex + 2*sizex/3, offsety + distancey/2))
 
 	if divisor > 0:
-		score = accuracyfont.render(f"Success Rate: {round(total/divisor*100,2)}%",True,white)
+		score = accuracyfont.render(f"Success Rate: {round(divisor/total*100,2)}%",True,white)
 	else:
 		score = accuracyfont.render("Success Rate: No Games Played",True, white)
 	
@@ -418,6 +421,11 @@ def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framera
 	prctloss = accuracyfont.render(f"Percentage of Dataset Gotten Wrong: {round(len(failed)/len(word_list)*100,2)}%", True, white)
 	screen.blit(prctloss, (distancex, offsety+distancey*index))
 	index += 1
+	
+	if len(wordcount)!=0:
+		avgwords = accuracyfont.render(f"Average Number of Guesses Needed: {round(sum(wordcount)/len(wordcount),2)}", True, white)
+		screen.blit(avgwords, (distancex, offsety+distancey*index))
+		index += 1
 
 	failedtitle = accuracyfont.render("Failed Words:", True, white)
 	screen.blit(failedtitle, (distancex, offsety+distancey*index))
@@ -427,6 +435,8 @@ def drawStats(total,divisor, failed = [], streak = 0, streaks_list = [], framera
 		failedwordstring = accuracyfont.render("   "+failedword, True, white)
 		screen.blit(failedwordstring, (distancex, offsety+distancey*index))
 		index += 1
+
+
 	 
 
 def drawCredits():
@@ -438,55 +448,55 @@ def drawCredits():
 
 class Graph:
 	def __init__(self):
-		self.pair_list = []
+		self.avglist = []
 		self.x_gap = 2
+		self.pct_min = 90
 		self.x_max = sizex*4/self.x_gap
-		self.scaler = 1/5
-		self.bl_loc = (11*width/15, offsety+1/self.scaler*100)
+		self.gheight = sizex*6
+		self.gwidth = self.x_max*self.x_gap
+		self.tl_loc = (11*width/15, offsety)
 	
 	def addPair(self, success, total):
 		if total < 1:
 			pass
-		elif len(self.pair_list) == self.x_max:
-			self.pair_list = self.pair_list[1:]
-			self.pair_list.append((total, round(success/total*100,2)))
+		elif len(self.avglist) == self.x_max:
+			self.avglist = self.avglist[1:]
+			self.avglist.append(round(success/total,2))
 		else:
-			self.pair_list.append((total, round(success/total*100,2)))
+			self.avglist.append(round(success/total,2))
 	
+	def scale(self, percentage):
+		scaled = self.gheight * percentage
+		return scaled
+
 	def display(self):
-		x_gap = self.x_gap
-		scaler = self.scaler
-
-
-		# draw graph vertical line and 100% text
-		pygame.draw.line(screen, white, self.bl_loc, (self.bl_loc[0],self.bl_loc[1]-1/scaler*100),2)
-		ptxt = pygame.font.SysFont(font_family, int(sizex/4))
-		t = ptxt.render("100%-", True, white)
-		screen.blit(t, (self.bl_loc[0]-sizex/4*2, self.bl_loc[1]-1/scaler*100-sizex/16))
-		# horizontal and 0% text
-		pygame.draw.line(screen, white, self.bl_loc, (self.bl_loc[0]+self.x_gap*self.x_max, self.bl_loc[1]),2)
-		noptxt = ptxt.render("0%-", True, white)
-		screen.blit(noptxt, (self.bl_loc[0]-sizex/3, self.bl_loc[1]-sizex/16))
-
-		if len(self.pair_list) > 2:
-			for i in range(len(self.pair_list)-1):
-				# define the scaled values
-				currentscaledy = self.pair_list[i][1]/scaler
-				nextscaledy = self.pair_list[i+1][1]/scaler
-				# current coordinates
-				currentx = i*x_gap + self.bl_loc[0]
-				currenty = self.bl_loc[1]-currentscaledy
-				# next coordinates
-				nextx = (i+1)*x_gap + self.bl_loc[0]
-				nexty = self.bl_loc[1]-nextscaledy
-
-				if self.pair_list[i][1] > self.pair_list[i+1][1]:
-					pygame.draw.line(screen, red, (currentx,currenty),(nextx,nexty),3)
+		color = green
+		if len(self.avglist) > 1:
+			for i in range(len(self.avglist)):
+				k = self.avglist
+				self.pct_min= round(min(k)*100)-5
+				
+				ycor1 = self.tl_loc[1]+(self.gheight- self.scale(k[i]))*(100/(100-self.pct_min))
+				ycor2 = self.tl_loc[1]+(self.gheight- self.scale(k[i-1]))*(100/(100-self.pct_min))
+				if ycor1 > ycor2 :
+					color = red
 				else:
-					pygame.draw.line(screen, green, (currentx,currenty),(nextx,nexty),3)
-		label = pygame.font.SysFont(font_family, int(sizex/4))
-		labeld = label.render("Accuracy v Rounds", True, white)
-		screen.blit(labeld, (self.bl_loc[0]+(x_gap*scaler)/2-sizex/4, self.bl_loc[1]+sizex/4))
+					color = green
+				pygame.draw.line(screen, color, (i*self.x_gap + self.tl_loc[0] ,ycor1 ),((i-1)*self.x_gap+self.tl_loc[0], ycor2))
+		
+		# draw axies
+		pygame.draw.line(screen, white, self.tl_loc, (self.tl_loc[0], self.tl_loc[1]+self.gheight))
+		pygame.draw.line(screen, white, (self.tl_loc[0], self.tl_loc[1]+self.gheight), (self.tl_loc[0]+self.gwidth, self.tl_loc[1]+self.gheight))
+		
+		pctfont = pygame.font.SysFont('Neue Helvetica', int(sizex/4))
+		x = pctfont.render("100%-", True, white)
+		screen.blit(x, (self.tl_loc[0]-sizex/2, self.tl_loc[1]-padding))
+		l = pctfont.render(f"{self.pct_min}%-", True, white)
+		screen.blit(l, (self.tl_loc[0]-2*sizex/5, self.tl_loc[1]+self.gheight-padding))
+
+
+
+
 
 
 def makeData(allwords:list):
@@ -519,6 +529,7 @@ def run(Displayer:Displayer):
 	failed_words = []
 	streak = 0 
 	streak_list = [0]
+	wordcountlist = []
 	# this is used because it doens't actually make teh green boxes for the final correct word, so it's stored here
 	green_word = ""
 	frm = framerate
@@ -560,6 +571,7 @@ def run(Displayer:Displayer):
 					frm = 100
 				elif key == "down":
 					frm = 1
+				
 		
 
 		temp_data.append(best_word)
@@ -592,6 +604,7 @@ def run(Displayer:Displayer):
 			
 			successScreen()
 			Displayer.makeGreenFinal(guesses-1,green_word)
+			wordcountlist.append(guesses)
 			guesses=0
 			success=False
 			games_played += 1
@@ -626,9 +639,9 @@ def run(Displayer:Displayer):
 		if show_stats:
 			# framerate intention reasoning 
 			if frm > 1:
-				drawStats(success_count,games_played, failed=failed_words, streak = streak, streaks_list=streak_list, framerate = round(clock.get_fps()), secret = secret_word, int_frm = frm)
+				drawStats(games_played,success_count, failed=failed_words, streak = streak, streaks_list=streak_list, framerate = round(clock.get_fps()), secret = secret_word, int_frm = frm, wordcount = wordcountlist)
 			else:
-				drawStats(success_count,games_played, failed=failed_words, streak = streak, streaks_list=streak_list, framerate = frm, secret = secret_word, int_frm = frm)
+				drawStats(games_played, success_count, failed = failed_words, streak = streak, streaks_list = streak_list, framerate = frm, secret = secret_word, int_frm = frm, wordcount = wordcountlist)
 	
 
 			graph.addPair(success_count,games_played)
@@ -636,8 +649,12 @@ def run(Displayer:Displayer):
 			graph.display()
 
 		if games_played/len(word_list)*100 >= 100:
+			# reset all the stats
 			games_played = 0
+			success_count = 0
+			streak_list = []
 			failed_words = []
+			wordcountlist = []
 
 		pygame.display.flip()
 
